@@ -2,6 +2,8 @@
 研究用のGitHub MCPサーバーの実装をする
 
 ```bash
+# 仮想環境の有効化
+$ source .venv/bin/activate
 # インストールしたパッケージをrequirements.txtに記載
 $ pip freeze > requirements.txt
 
