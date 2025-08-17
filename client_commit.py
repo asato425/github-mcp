@@ -15,5 +15,8 @@ def commit_via_mcp(message, repo_path=None):
         print("エラー:", response.text)
 
 if __name__ == "__main__":
-    # 例: カレントディレクトリでコミット
-    commit_via_mcp("テストコミット", repo_path=".")
+    # 標準入力からコミットメッセージを受け取る
+    message = input("コミットメッセージを入力してください: ")
+    # 必要に応じてパスを指定（例: "." でカレントディレクトリ）
+    repo_path = "."
+    commit_via_mcp(message, repo_path=repo_path)
