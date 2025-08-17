@@ -15,10 +15,16 @@ class CommitResponse(BaseModel):
     status: str
     message: str
 
+class PushRequest(BaseModel):
+    repo_path: Optional[str] = None  # 省略時はカレントディレクトリを使用
+
+class PushResponse(BaseModel):
+    status: str
+    message: str
+
 @app.post("/commit", response_model=CommitResponse)
 async def commit_code(req: CommitRequest):
     repo_dir = req.repo_path or os.getcwd()
-    
     try:
         # Git コマンドを実行
         subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
@@ -26,3 +32,13 @@ async def commit_code(req: CommitRequest):
         return CommitResponse(status="success", message=f"Committed in {repo_dir}: {req.message}")
     except subprocess.CalledProcessError as e:
         return CommitResponse(status="error", message=str(e))
+
+# push専用エンドポイント
+@app.post("/push", response_model=PushResponse)
+async def push_code(req: PushRequest):
+    repo_dir = req.repo_path or os.getcwd()
+    try:
+        subprocess.run(["git", "push"], cwd=repo_dir, check=True)
+        return PushResponse(status="success", message=f"Pushed in {repo_dir}")
+    except subprocess.CalledProcessError as e:
+        return PushResponse(status="error", message=str(e))
