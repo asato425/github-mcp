@@ -27,6 +27,7 @@ def push_via_mcp(repo_path=None):
     else:
         print("プッシュエラー:", response.text)
 
+
 # プッシュ用の関数を追加してほしい
 
 if __name__ == "__main__":
