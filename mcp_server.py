@@ -66,8 +66,8 @@ async def get_latest_workflow(req: WorkflowRequest):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     url = f"https://api.github.com/repos/{req.owner}/{req.repo}/actions/runs?per_page=1"
     try:
-        # 10秒待機
-        time.sleep(10)
+        # 15秒待機
+        time.sleep(15)
         # 最初の取得
         resp = requests.get(url, headers=headers)
         data = resp.json()
