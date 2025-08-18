@@ -71,11 +71,10 @@ async def get_latest_workflow(req: WorkflowRequest):
         # 最初の取得
         resp = requests.get(url, headers=headers)
         data = resp.json()
-        logging.info("data: %s", data)
         if "workflow_runs" not in data or not data["workflow_runs"]:
             return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
         run = data["workflow_runs"][0]
-        logging.info("run: %s", run)
+
         # 進行中なら完了まで待機
         poll_count = 0
         while run["status"] in ("in_progress", "queued") and poll_count < 60:
@@ -86,6 +85,7 @@ async def get_latest_workflow(req: WorkflowRequest):
                 return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
             run = data["workflow_runs"][0]
             poll_count += 1
+        logging.info("data: %s", data)
         return WorkflowResult(
             status=run["status"],
             conclusion=run["conclusion"],
