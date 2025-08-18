@@ -78,7 +78,6 @@ async def get_latest_workflow(req: WorkflowRequest):
             time.sleep(5)
             resp = requests.get(url, headers=headers)
             data = resp.json()
-            print(data)
             if "workflow_runs" not in data or not data["workflow_runs"]:
                 return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
             run = data["workflow_runs"][0]
