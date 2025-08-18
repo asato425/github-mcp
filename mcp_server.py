@@ -17,6 +17,7 @@ class CommitRequest(BaseModel):
 class CommitResponse(BaseModel):
     status: str
     message: str
+    commit_sha: str
 
 class PushRequest(BaseModel):
     repo_path: Optional[str] = None  # 省略時はカレントディレクトリを使用
@@ -29,6 +30,7 @@ class PushResponse(BaseModel):
 class WorkflowRequest(BaseModel):
     owner: str
     repo: str
+    commit_sha: str
 
 class WorkflowResult(BaseModel):
     status: str
@@ -43,9 +45,10 @@ async def commit_code(req: CommitRequest):
         # Git コマンドを実行
         subprocess.run(["git", "add", "."], cwd=repo_dir, check=True)
         subprocess.run(["git", "commit", "-m", req.message], cwd=repo_dir, check=True)
-        return CommitResponse(status="success", message=f"Committed in {repo_dir}: {req.message}")
+        commit_sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_dir, check=True, capture_output=True).stdout.decode().strip()
+        return CommitResponse(status="success", message=f"Committed in {repo_dir}: {req.message}", commit_sha=commit_sha)
     except subprocess.CalledProcessError as e:
-        return CommitResponse(status="error", message=str(e))
+        return CommitResponse(status="error", message=str(e), commit_sha=commit_sha)
 
 # push専用エンドポイント
 @app.post("/push", response_model=PushResponse)
@@ -66,26 +69,49 @@ async def get_latest_workflow(req: WorkflowRequest):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     url = f"https://api.github.com/repos/{req.owner}/{req.repo}/actions/runs?per_page=1"
     try:
-        # 15秒待機
-        time.sleep(15)
-        # 最初の取得
-        resp = requests.get(url, headers=headers)
-        data = resp.json()
-        if "workflow_runs" not in data or not data["workflow_runs"]:
-            return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
-        run = data["workflow_runs"][0]
-
-        # 進行中なら完了まで待機
         poll_count = 0
-        while run["status"] in ("in_progress", "queued") and poll_count < 60:
-            time.sleep(5)
+        found = False
+        run = None
+        # 最大60回(=最大5分)までポーリング
+        while poll_count < 60:
             resp = requests.get(url, headers=headers)
             data = resp.json()
+            logging.info("------------------------------------------")
+            logging.info({"poll_count": poll_count})
             if "workflow_runs" not in data or not data["workflow_runs"]:
-                return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
-            run = data["workflow_runs"][0]
-            poll_count += 1
-        logging.info("data: %s", data)
+                time.sleep(5)
+                poll_count += 1
+                continue
+            # head_shaが一致するrunを探す
+            for r in data["workflow_runs"]:
+                if r.get("head_sha") == req.commit_sha:
+                    run = r
+                    found = True
+                    break
+            if found:
+                # 進行中なら完了まで待機
+                while run["status"] in ("in_progress", "queued") and poll_count < 60:
+                    time.sleep(5)
+                    resp = requests.get(url, headers=headers)
+                    data = resp.json()
+                    # head_shaが一致するrunを再取得
+                    run = None
+                    for r in data["workflow_runs"]:
+                        if r.get("head_sha") == req.commit_sha:
+                            run = r
+                            break
+                    if run is None:
+                        break
+                    poll_count += 1
+                break
+            else:
+                # head_sha一致するrunがまだ出てこない場合は少し待つ
+                time.sleep(5)
+                poll_count += 1
+        if not run:
+            return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
+        logging.info("------------------------------------------")
+        logging.info("run: %s", run)
         return WorkflowResult(
             status=run["status"],
             conclusion=run["conclusion"],
