@@ -4,6 +4,7 @@ from typing import Optional
 import subprocess
 import requests
 import os
+import time
 
 app = FastAPI(title="GitHub MCP Server")
 
@@ -63,11 +64,24 @@ async def get_latest_workflow(req: WorkflowRequest):
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     url = f"https://api.github.com/repos/{req.owner}/{req.repo}/actions/runs?per_page=1"
     try:
+        # 10秒待機
+        time.sleep(10)
+        # 最初の取得
         resp = requests.get(url, headers=headers)
         data = resp.json()
         if "workflow_runs" not in data or not data["workflow_runs"]:
             return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
         run = data["workflow_runs"][0]
+        # 進行中なら完了まで待機
+        poll_count = 0
+        while run["status"] in ("in_progress", "queued") and poll_count < 60:
+            time.sleep(5)
+            resp = requests.get(url, headers=headers)
+            data = resp.json()
+            if "workflow_runs" not in data or not data["workflow_runs"]:
+                return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
+            run = data["workflow_runs"][0]
+            poll_count += 1
         return WorkflowResult(
             status=run["status"],
             conclusion=run["conclusion"],
