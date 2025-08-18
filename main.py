@@ -8,7 +8,7 @@ if __name__ == "__main__":
     repo_path = "."
     commit_via_mcp(message, repo_path=repo_path)
     # pushも実行
-    #push_via_mcp(repo_path=repo_path)
+    push_via_mcp(repo_path=repo_path)
     owner = "asato425"
     github_repo = "github-mcp"
     get_latest_workflow_logs(owner, github_repo)
