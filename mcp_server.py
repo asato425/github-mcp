@@ -114,7 +114,7 @@ async def get_latest_workflow(req: WorkflowRequest):
         logging.info("------------------------------------------")
         logging.info("run: %s", run)
         failure_reason = ""
-        # 失敗時はlogs_urlからログを取得し、失敗箇所だけ抽出（テスト失敗や例外に特化）
+        # 失敗時はlogs_urlからログを取得し、そのままfailure_reasonに格納（LLMで抽出するため）
         if run["conclusion"] == "failure" and run.get("logs_url"):
             try:
                 logs_resp = requests.get(run["logs_url"], headers=headers)
@@ -122,26 +122,17 @@ async def get_latest_workflow(req: WorkflowRequest):
                     import zipfile
                     import io
                     z = zipfile.ZipFile(io.BytesIO(logs_resp.content))
-                    # 失敗に特化したキーワード
-                    keywords = ["AssertionError", "Traceback", "FAIL:", "FAILED", "##[error]", "error", "fail", "exception"]
-                    error_lines = []
-                    seen = set()
+                    log_texts = []
                     for name in z.namelist():
-                        # テストやrunを含むファイル名のみ優先
                         if not ("test" in name.lower() or "run" in name.lower()):
                             continue
                         with z.open(name) as f:
-                            for line in f:
-                                try:
-                                    s = line.decode(errors="ignore")
-                                except Exception:
-                                    continue
-                                for kw in keywords:
-                                    if kw.lower() in s.lower() and s.strip() not in seen:
-                                        error_lines.append(f"[{name}] {s.strip()}")
-                                        seen.add(s.strip())
-                    # 20行まで抜粋
-                    failure_reason = "\n".join(error_lines[-20:]) if error_lines else "(No error lines found)"
+                            try:
+                                content = f.read().decode(errors="ignore")
+                                log_texts.append(f"===== {name} =====\n{content}")
+                            except Exception:
+                                continue
+                    failure_reason = "\n\n".join(log_texts) if log_texts else "(No test/run logs found)"
                 else:
                     failure_reason = f"Failed to fetch logs: {logs_resp.status_code}"
             except Exception as ex:
