@@ -37,6 +37,7 @@ class WorkflowResult(BaseModel):
     conclusion: str
     html_url: str
     logs_url: str
+    failure_reason: str = ""  # 失敗要因（失敗時のみ）
 
 @app.post("/commit", response_model=CommitResponse)
 async def commit_code(req: CommitRequest):
@@ -109,14 +110,40 @@ async def get_latest_workflow(req: WorkflowRequest):
                 time.sleep(5)
                 poll_count += 1
         if not run:
-            return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
+            return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="", failure_reason="")
         logging.info("------------------------------------------")
         logging.info("run: %s", run)
+        failure_reason = ""
+        # 失敗時はlogs_urlからログを取得し、失敗箇所だけ抽出
+        if run["conclusion"] == "failure" and run.get("logs_url"):
+            try:
+                logs_resp = requests.get(run["logs_url"], headers=headers)
+                if logs_resp.status_code == 200:
+                    import zipfile
+                    import io
+                    z = zipfile.ZipFile(io.BytesIO(logs_resp.content))
+                    # すべてのログファイルを検索し、"error"や"failed"を含む行を抽出
+                    error_lines = []
+                    for name in z.namelist():
+                        with z.open(name) as f:
+                            for line in f:
+                                try:
+                                    s = line.decode(errors="ignore")
+                                except Exception:
+                                    continue
+                                if ("error" in s.lower() or "fail" in s.lower() or "exception" in s.lower()):
+                                    error_lines.append(f"[{name}] {s.strip()}")
+                    failure_reason = "\n".join(error_lines[-20:]) if error_lines else "(No error lines found)"
+                else:
+                    failure_reason = f"Failed to fetch logs: {logs_resp.status_code}"
+            except Exception as ex:
+                failure_reason = f"Log parse error: {ex}"
         return WorkflowResult(
             status=run["status"],
             conclusion=run["conclusion"],
             html_url=run["html_url"],
-            logs_url=run["logs_url"]
+            logs_url=run["logs_url"],
+            failure_reason=failure_reason
         )
     except Exception as e:
-        return WorkflowResult(status="error", conclusion=str(e), html_url="", logs_url="")
+        return WorkflowResult(status="error", conclusion=str(e), html_url="", logs_url="", failure_reason="")
