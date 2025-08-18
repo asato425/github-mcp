@@ -5,7 +5,9 @@ import subprocess
 import requests
 import os
 import time
+import logging
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 app = FastAPI(title="GitHub MCP Server")
 
 class CommitRequest(BaseModel):
@@ -69,6 +71,7 @@ async def get_latest_workflow(req: WorkflowRequest):
         # 最初の取得
         resp = requests.get(url, headers=headers)
         data = resp.json()
+        logging.info(data)
         if "workflow_runs" not in data or not data["workflow_runs"]:
             return WorkflowResult(status="not_found", conclusion="", html_url="", logs_url="")
         run = data["workflow_runs"][0]
