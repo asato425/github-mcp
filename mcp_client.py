@@ -15,9 +15,10 @@ def commit_via_mcp(message, repo_path=None):
     response = requests.post(MCP_COMMIT_URL, json=payload)
     if response.ok:
         print("コミット結果:", response.json())
+        return response.json()
     else:
         print("コミットエラー:", response.text)
-    return response.json().get("commit_sha")
+        return None
 
 def push_via_mcp(repo_path=None):
     payload = {
@@ -26,8 +27,10 @@ def push_via_mcp(repo_path=None):
     response = requests.post(MCP_PUSH_URL, json=payload)
     if response.ok:
         print("プッシュ結果:", response.json())
+        return response.json()
     else:
         print("プッシュエラー:", response.text)
+        return None
 
 def get_latest_workflow_logs(owner, repo, commit_sha):
     payload = {
@@ -38,11 +41,13 @@ def get_latest_workflow_logs(owner, repo, commit_sha):
     response = requests.post(MCP_WORKFLOW_URL, json=payload)
     if response.ok:
         print("ワークフロー結果:", response.json())
+        return response.json()
     else:
         print("ワークフローエラー:", response.text)
+        return None
 
 # コミットからワークフロー実行結果を取得するまでの関数
 def get_workflow_result_from_commit(owner, github_repo, commit_message, repo_path="."):
-    commit_sha = commit_via_mcp(commit_message, repo_path)
+    commit_sha = commit_via_mcp(commit_message, repo_path).get("commit_sha")
     push_via_mcp(repo_path)
     get_latest_workflow_logs(owner, github_repo, commit_sha)
